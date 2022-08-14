@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:0.13.3
+    platform: linux/amd64
+    container_name: localstack-container
+    environment:
+      SERVICES: 's3' # 使用するAWSサービスを指定。設定例: 's3,kms,secretsmanager,ssm,dynamodb,'
+      HOSTNAME_EXTERNAL: 'localstack' # 他のコンテナから呼び出される際のホスト名を指定。デフォルトは’localhost’
+      DATA_DIR: /tmp/localstack/data  # S3に送信したデータを保存したりするディレクトリを指定
+      DEFAULT_REGION: 'ap-northeast-1' # AWSリージョンの設定
+    ports:
+      - '4566:4566'
+    volumes:
+      # docker-entrypoint-initaws.d に配置されたスクリプトは自動実行される
+      - ./docker/localstack:/docker-entrypoint-initaws.d:ro
+
+  golang:
+    image: golang:1.19.0-alpine3.15
+    build:
+      context: .
+      dockerfile: docker/golang/Dockerfile
+    container_name: golang-container
+    depends_on:
+      - localstack
+    environment:
+      # Go環境の設定
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: '0'
+      TZ: Asia/Tokyo
+      # localstackを使用するのに必要な設定
+      S3_ENDPOINT: 'http://localstack:4566' # localstackに接続するためのURLを設定
+      S3_BUCKET_NAME: 'sample-bucket' # 接続するバケット名を設定
+      AWS_DEFAULT_REGION: 'ap-northeast-1' # AWSリージョンの設定
+      AWS_ACCESS_KEY_ID: abcd # 任意の文字列を設定。空文字だとエラーになる
+      AWS_SECRET_ACCESS_KEY: abcd # 任意の文字列を設定。空文字だとエラーになる
+    ports:
+      - '4000:4000'
+    networks:
+      - default
+    volumes:
+      - .:/app:rw
+    working_dir: /app
+    tty: true
+
